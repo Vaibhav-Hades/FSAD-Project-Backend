@@ -3,6 +3,7 @@ package com.agrivalueconnect.config;
 import com.agrivalueconnect.security.CustomUserDetailsService;
 import com.agrivalueconnect.security.JwtAuthFilter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -23,6 +24,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.List;
+import java.util.Arrays;
 
 @Configuration
 @EnableWebSecurity
@@ -31,6 +33,9 @@ public class SecurityConfig {
 
     @Autowired private JwtAuthFilter jwtAuthFilter;
     @Autowired private CustomUserDetailsService userDetailsService;
+    
+    @Value("${app.cors.allowed-origins:http://localhost:5173,https://agri-value-connect-frontend.vercel.app}")
+    private String allowedOrigins;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -54,14 +59,31 @@ public class SecurityConfig {
     }
 
     // Inline CORS config wired directly into Spring Security
+    // Configured to support both local development and production (Vercel)
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173"));
+        
+        // Parse allowed origins from environment variable or use defaults
+        List<String> origins = Arrays.asList(allowedOrigins.split(","));
+        origins = origins.stream().map(String::trim).toList();
+        config.setAllowedOrigins(origins);
+        
+        // Allow all HTTP methods required by REST API
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+        
+        // Allow all headers from frontend
         config.setAllowedHeaders(List.of("*"));
-        config.setExposedHeaders(List.of("Authorization"));
+        
+        // Expose Authorization header for JWT token responses
+        config.setExposedHeaders(List.of("Authorization", "Content-Type"));
+        
+        // Required for JWT authentication with credentials
         config.setAllowCredentials(true);
+        
+        // Set max age for preflight requests (1 hour in seconds)
+        config.setMaxAge(3600L);
+        
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
